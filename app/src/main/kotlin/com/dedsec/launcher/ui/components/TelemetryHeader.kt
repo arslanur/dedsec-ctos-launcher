@@ -5,12 +5,10 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -26,14 +24,27 @@ import androidx.compose.ui.unit.sp
 import com.dedsec.launcher.data.BatteryState
 import com.dedsec.launcher.data.NetworkInfo
 import com.dedsec.launcher.ui.theme.*
+import kotlin.math.roundToInt
 
 @Composable
 fun TelemetryHeader(
-    battery: BatteryState,
-    network: NetworkInfo,
-    time: String,
-    modifier: Modifier = Modifier
+    battery:     BatteryState,
+    network:     NetworkInfo,
+    time:        String,
+    dayProgress: Float,          // 0f..1f  (minutes elapsed / 1440)
+    modifier:    Modifier = Modifier
 ) {
+    // Derive human-readable day segment label
+    val hourOfDay = (dayProgress * 24).toInt()
+    val segment = when (hourOfDay) {
+        in 0..5   -> "NIGHT"
+        in 6..11  -> "MORNING"
+        in 12..17 -> "AFTERNOON"
+        in 18..20 -> "EVENING"
+        else      -> "NIGHT"
+    }
+    val pct = (dayProgress * 100).roundToInt()
+
     Box(modifier = modifier.fillMaxWidth()) {
         CornerBracketBox(
             modifier      = Modifier.matchParentSize(),
@@ -46,10 +57,10 @@ fun TelemetryHeader(
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 10.dp)
         ) {
-            // ── skull · progress bar · skull ──────────────────────────────
+            // ── skull · XP day-progress bar · skull ───────────────────────
             Row(
-                modifier            = Modifier.fillMaxWidth(),
-                verticalAlignment   = Alignment.CenterVertically,
+                modifier              = Modifier.fillMaxWidth(),
+                verticalAlignment     = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(text = "☠", color = CrispWhite, fontSize = 20.sp, fontFamily = FontFamily.Monospace)
@@ -58,39 +69,57 @@ fun TelemetryHeader(
                     modifier            = Modifier.weight(1f).padding(horizontal = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text       = "BOTNET/XP",
-                        color      = NeonMagenta,
-                        fontSize   = 8.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp
-                    )
-                    Spacer(Modifier.height(3.dp))
-                    BatteryBar(battery.percentage, battery.isCharging)
-                    Spacer(Modifier.height(2.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Label row: "BOTNET/XP" on left, segment on right
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text       = "${battery.percentage}%",
+                            text          = "BOTNET/XP",
+                            color         = NeonMagenta,
+                            fontSize      = 7.sp,
+                            fontFamily    = FontFamily.Monospace,
+                            fontWeight    = FontWeight.Bold,
+                            letterSpacing = 2.sp
+                        )
+                        Text(
+                            text          = segment,
+                            color         = NeonMagentaDim,
+                            fontSize      = 7.sp,
+                            fontFamily    = FontFamily.Monospace,
+                            letterSpacing = 1.sp
+                        )
+                    }
+
+                    Spacer(Modifier.height(3.dp))
+
+                    // Day progress bar — fills as the day passes
+                    DayProgressBar(progress = dayProgress)
+
+                    Spacer(Modifier.height(2.dp))
+
+                    // Sub-label: "XX% DAY DONE  |  battery%"
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment     = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text       = "$pct% DAY DONE",
                             color      = CrispWhite,
-                            fontSize   = 9.sp,
+                            fontSize   = 8.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text       = "BAT ${battery.percentage}%" +
+                                         if (battery.isCharging) " ⚡" else "",
+                            color      = if (battery.isCharging) NeonMagenta
+                                         else DimWhite,
+                            fontSize   = 7.sp,
                             fontFamily = FontFamily.Monospace
                         )
-                        if (battery.isCharging) {
-                            Spacer(Modifier.width(4.dp))
-                            Icon(
-                                imageVector = Icons.Default.BatteryChargingFull,
-                                contentDescription = null,
-                                tint = NeonMagenta,
-                                modifier = Modifier.size(10.dp)
-                            )
-                            Text(
-                                text       = " [CHG]",
-                                color      = NeonMagenta,
-                                fontSize   = 8.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
                     }
                 }
 
@@ -99,7 +128,7 @@ fun TelemetryHeader(
 
             Spacer(Modifier.height(6.dp))
 
-            // ── IP · wifi status · clock ───────────────────────────────────
+            // ── IP · wifi/cell · clock ─────────────────────────────────────
             Row(
                 modifier              = Modifier.fillMaxWidth(),
                 verticalAlignment     = Alignment.CenterVertically,
@@ -112,7 +141,10 @@ fun TelemetryHeader(
                     fontFamily = FontFamily.Monospace
                 )
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(
+                    verticalAlignment     = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Icon(
                         imageVector = if (network.isWifiConnected) Icons.Default.Wifi else Icons.Default.WifiOff,
                         contentDescription = null,
@@ -128,8 +160,10 @@ fun TelemetryHeader(
                         )
                     }
                     Text(
-                        text       = if (network.isWifiConnected || network.isCellularConnected) "ONLINE" else "OFFLINE",
-                        color      = if (network.isWifiConnected || network.isCellularConnected) NeonMagenta else Color.Gray,
+                        text       = if (network.isWifiConnected || network.isCellularConnected)
+                            "ONLINE" else "OFFLINE",
+                        color      = if (network.isWifiConnected || network.isCellularConnected)
+                            NeonMagenta else Color.Gray,
                         fontSize   = 9.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -148,21 +182,22 @@ fun TelemetryHeader(
 }
 
 @Composable
-private fun BatteryBar(percentage: Int, isCharging: Boolean) {
-    val progress by animateFloatAsState(
-        targetValue    = percentage / 100f,
-        animationSpec  = tween(1_000),
-        label          = "battery"
+private fun DayProgressBar(progress: Float) {
+    val animated by animateFloatAsState(
+        targetValue   = progress,
+        animationSpec = tween(1_200),
+        label         = "day_xp"
     )
+    // Colour shifts through the day: midnight=dim, morning=amber, noon=magenta, evening=dim
     val barColor = when {
-        isCharging      -> NeonMagenta
-        percentage > 50 -> NeonMagenta
-        percentage > 20 -> WarnAmber
-        else            -> DangerRed
+        progress < 0.25f -> Color(0xFF4466AA)   // pre-dawn blue
+        progress < 0.50f -> WarnAmber            // morning amber
+        progress < 0.75f -> NeonMagenta          // afternoon magenta
+        else             -> Color(0xFF884499)    // evening purple
     }
-    Canvas(
-        modifier = Modifier.fillMaxWidth().height(5.dp)
-    ) {
+
+    Canvas(modifier = Modifier.fillMaxWidth().height(6.dp)) {
+        // Track
         drawLine(
             color       = Color(0xFF2A2A2A),
             start       = Offset(0f, size.height / 2f),
@@ -170,13 +205,30 @@ private fun BatteryBar(percentage: Int, isCharging: Boolean) {
             strokeWidth = size.height,
             cap         = StrokeCap.Square
         )
-        if (progress > 0f) {
+        // Hour tick marks (every 6 h = 25%)
+        for (tick in 1..3) {
+            val x = size.width * tick * 0.25f
+            drawLine(
+                color       = Color(0xFF444444),
+                start       = Offset(x, 0f),
+                end         = Offset(x, size.height),
+                strokeWidth = 1f
+            )
+        }
+        // Fill
+        if (animated > 0f) {
             drawLine(
                 color       = barColor,
                 start       = Offset(0f, size.height / 2f),
-                end         = Offset(size.width * progress, size.height / 2f),
+                end         = Offset(size.width * animated, size.height / 2f),
                 strokeWidth = size.height,
                 cap         = StrokeCap.Square
+            )
+            // Bright leading edge
+            drawCircle(
+                color  = Color.White,
+                radius = size.height * 0.9f,
+                center = Offset(size.width * animated, size.height / 2f)
             )
         }
     }

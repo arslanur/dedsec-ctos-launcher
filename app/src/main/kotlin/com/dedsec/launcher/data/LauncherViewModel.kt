@@ -11,6 +11,7 @@ import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.net.Inet4Address
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -49,8 +51,14 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _time         = MutableStateFlow("")
     val time: StateFlow<String> = _time.asStateFlow()
 
+    private val _dayProgress  = MutableStateFlow(0f)
+    val dayProgress: StateFlow<Float> = _dayProgress.asStateFlow()
+
     private val _showBoot     = MutableStateFlow(true)
     val showBoot: StateFlow<Boolean> = _showBoot.asStateFlow()
+
+    private val _wallpaper    = MutableStateFlow<WallpaperState>(loadWallpaper(ctx))
+    val wallpaper: StateFlow<WallpaperState> = _wallpaper.asStateFlow()
 
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -106,7 +114,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val fmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
             while (true) {
-                _time.value = fmt.format(Date())
+                val now = Calendar.getInstance()
+                _time.value = fmt.format(now.time)
+                val minuteOfDay = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+                _dayProgress.value = minuteOfDay / 1440f   // 1440 = 24 × 60
                 delay(1_000)
             }
         }
@@ -190,6 +201,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun dismissBoot() { _showBoot.value = false }
+
+    fun selectBundledWallpaper(resId: Int) {
+        val state = WallpaperState.Bundled(resId)
+        _wallpaper.value = state
+        saveWallpaper(ctx, state)
+    }
+
+    fun setCustomWallpaper(uri: Uri) {
+        // Persist read permission across reboots
+        try { ctx.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        catch (_: Exception) {}
+        val state = WallpaperState.Custom(uri)
+        _wallpaper.value = state
+        saveWallpaper(ctx, state)
+    }
 
     override fun onCleared() {
         super.onCleared()

@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ctOS 2.0 // DedSec Launcher Preview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Courier+Prime:wght@400;700&display=swap');
+
+  :root {
+    --magenta:    #E6007E;
+    --magenta50:  rgba(230,0,126,0.5);
+    --magenta20:  rgba(230,0,126,0.2);
+    --magenta10:  rgba(230,0,126,0.1);
+    --black:      #000000;
+    --surface:    #0A0A0A;
+    --dot:        #1A1A1A;
+    --white:      #FFFFFF;
+    --dimwhite:   rgba(255,255,255,0.7);
+    --faint:      rgba(255,255,255,0.25);
+    --amber:      #FFAA00;
+    --red:        #FF3333;
+    --mono:       'Share Tech Mono', 'Courier Prime', Courier, monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #111;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 48px;
+    min-height: 100vh;
+    font-family: var(--mono);
+    gap: 24px;
+  }
+
+  h1 {
+    color: var(--magenta);
+    font-size: 13px;
+    letter-spacing: 4px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .subtitle { color: var(--faint); font-size: 10px; letter-spacing: 2px; text-align: center; }
+
+  .screens-row {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-start;
+  }
+
+  .phone-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .screen-label {
+    color: var(--magenta);
+    font-size: 9px;
+    letter-spacing: 3px;
+    text-align: center;
+  }
+
+  /* Phone bezel */
+  .phone {
+    width: 320px;
+    height: 693px;    /* 20:9 ~= 320×693 */
+    background: var(--black);
+    border-radius: 36px;
+    border: 2px solid #222;
+    box-shadow:
+      0 0 0 1px #333,
+      0 0 60px rgba(230,0,126,0.08),
+      inset 0 0 2px rgba(255,255,255,0.05);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* punch-hole notch */
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 10px; left: 50%; transform: translateX(-50%);
+    width: 10px; height: 10px;
+    background: #111;
+    border-radius: 50%;
+    z-index: 100;
+  }
+
+  /* ── WALLPAPER + OVERLAY ────────────────────────────────── */
+  .wallpaper-bg {
+    position: absolute; inset: 0;
+    background-size: cover;
+    background-position: center top;
+    pointer-events: none;
+  }
+  .wallpaper-overlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.55);
+    pointer-events: none;
+  }
+
+  /* ─── HALFTONE DOT-MATRIX BG ─────────────────────────── */
+  .halftone {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(26,26,26,0.7) 1.3px, transparent 1.3px);
+    background-size: 25px 25px;
+    pointer-events: none;
+  }
+
+  /* ─── CORNER BRACKET REUSABLE ───────────────────────────── */
+  .brackets {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .brackets::before, .brackets::after,
+  .brackets-b::before, .brackets-b::after {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+  }
+  .brackets::before { top:0; left:0;
+    border-top: 2px solid var(--magenta); border-left: 2px solid var(--magenta); }
+  .brackets::after  { top:0; right:0;
+    border-top: 2px solid var(--magenta); border-right: 2px solid var(--magenta); }
+  .brackets-b { position: absolute; inset: 0; pointer-events: none; }
+  .brackets-b::before { bottom:0; left:0;
+    border-bottom: 2px solid var(--magenta); border-left: 2px solid var(--magenta); }
+  .brackets-b::after  { bottom:0; right:0;
+    border-bottom: 2px solid var(--magenta); border-right: 2px solid var(--magenta); }
+
+  /* ════════════════════════════════════════════════════════
+     SCREEN 1 — BOOT SEQUENCE
+  ═════════════════════════════════════════════════════════ */
+  .boot-screen {
+    position: absolute; inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 20px;
+    gap: 0;
+  }
+
+  .dot-matrix {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 5px;
+    width: 180px;
+    height: 180px;
+    margin-top: 16px;
+  }
+  .dot {
+    width: 100%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #2A2A2A;
+    transition: background 0.1s;
+  }
+  .dot.lit { background: var(--white); box-shadow: 0 0 4px var(--white); }
+  .dot.dim { background: #444; }
+
+  .boot-corners {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .boot-corner {
+    position: absolute;
+    width: 32px; height: 32px;
+  }
+  .boot-corner.tl { top:8px; left:8px;
+    border-top: 2px solid var(--magenta); border-left: 2px solid var(--magenta); }
+  .boot-corner.tr { top:8px; right:8px;
+    border-top: 2px solid var(--magenta); border-right: 2px solid var(--magenta); }
+  .boot-corner.bl { bottom:8px; left:8px;
+    border-bottom: 2px solid var(--magenta); border-left: 2px solid var(--magenta); }
+  .boot-corner.br { bottom:8px; right:8px;
+    border-bottom: 2px solid var(--magenta); border-right: 2px solid var(--magenta); }
+
+  .terminal {
+    position: absolute;
+    bottom: 24px; left: 16px; right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .log-line {
+    font-size: 8.5px;
+    line-height: 1.5;
+    color: var(--white);
+    letter-spacing: 0.5px;
+  }
+  .log-line.ok  { color: var(--magenta); }
+  .log-line.hdr { color: var(--magenta); font-weight: bold; }
+
+  .skip-hint {
+    position: absolute;
+    bottom: 10px; right: 14px;
+    font-size: 7.5px;
+    color: var(--faint);
+    letter-spacing: 1px;
+  }
+
+  /* ════════════════════════════════════════════════════════
+     SCREEN 2 — HOME SCREEN
+  ═════════════════════════════════════════════════════════ */
+  .home-screen {
+    position: absolute; inset: 0;
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 10px 0;
+    gap: 8px;
+  }
+
+  /* ── Telemetry Header ─────────────────────────────────── */
+  .telemetry {
+    position: relative;
+    padding: 10px 16px 8px;
+    margin: 0 2px;
+  }
+  .tel-skull-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .skull { font-size: 16px; }
+  .botnet-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .botnet-label {
+    color: var(--magenta);
+    font-size: 7px;
+    letter-spacing: 2px;
+    font-weight: bold;
+  }
+  .xp-bar-wrap {
+    width: 100%;
+    position: relative;
+    height: 6px;
+    background: #2A2A2A;
+  }
+  .xp-bar-fill {
+    height: 100%;
+    position: relative;
+    transition: width 1s ease;
+  }
+  .xp-tick {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: #444;
+  }
+  .xp-dot {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px; height: 8px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 4px #fff;
+  }
+  .xp-labels-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+  }
+  .xp-pct {
+    color: var(--white);
+    font-size: 8px;
+    font-weight: bold;
+  }
+  .xp-bat {
+    color: var(--dimwhite);
+    font-size: 7px;
+  }
+  .tel-info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .tel-ip { color: var(--dimwhite); font-size: 8.5px; }
+  .tel-status { color: var(--magenta); font-size: 8px; letter-spacing: 0.5px; }
+  .tel-time { color: var(--white); font-size: 9.5px; font-weight: bold; }
+
+  /* ── Media Widget ─────────────────────────────────────── */
+  .media-widget {
+    position: relative;
+    margin: 0 2px;
+    background: #050505;
+    border: 1.5px solid var(--magenta);
+    border-radius: 3px;
+    display: flex;
+    flex-direction: row;
+    padding: 10px;
+    gap: 10px;
+    overflow: hidden;
+  }
+  /* notch corners on media widget */
+  .media-widget::before {
+    content: '';
+    position: absolute;
+    top:0; left:0;
+    width:10px; height:10px;
+    border-top:1.5px solid var(--magenta);
+    border-left:1.5px solid var(--magenta);
+    background:#050505;
+  }
+  .media-widget::after {
+    content: '';
+    position: absolute;
+    bottom:0; right:0;
+    width:10px; height:10px;
+    border-bottom:1.5px solid var(--magenta);
+    border-right:1.5px solid var(--magenta);
+    background:#050505;
+  }
+
+  .skull-art {
+    width: 68px;
+    height: 68px;
+    background: #0D0D0D;
+    border: 1px solid var(--magenta50);
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .skull-art svg { width: 48px; height: 48px; opacity: 0.85; }
+  .skull-art::before {
+    content:'';
+    position:absolute; inset:0;
+    background-image: radial-gradient(circle, #1A1A1A 1px, transparent 1px);
+    background-size: 6px 6px;
+  }
+
+  .media-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+  .radio-label { color: var(--magenta); font-size: 6.5px; letter-spacing: 2px; font-weight: bold; }
+  .track-title { color: var(--white); font-size: 10.5px; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .track-artist { color: var(--dimwhite); font-size: 8.5px; }
+  .playback-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin-top: 6px;
+  }
+  .pb-btn {
+    width: 24px; height: 24px;
+    border: none; background: transparent;
+    color: var(--white); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+  }
+  .pb-btn.play {
+    width: 30px; height: 30px;
+    background: var(--magenta);
+    color: #000;
+    border-radius: 2px;
+    font-size: 15px;
+  }
+  .pb-btn.shuffle { color: var(--magenta); font-size: 10px; }
+
+  /* ── Spacer + swipe hint ──────────────────────────────── */
+  .swipe-hint {
+    text-align: center;
+    color: var(--magenta50);
+    font-size: 8px;
+    letter-spacing: 2px;
+    margin-top: auto;
+    padding-bottom: 4px;
+  }
+
+  /* ── App Grid ─────────────────────────────────────────── */
+  .app-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px 4px;
+    padding: 4px 4px 10px;
+  }
+  .app-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .icon-bg {
+    width: 54px; height: 54px;
+    background: #0E0E0E;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    font-size: 24px;
+    filter: grayscale(1) brightness(1.4);
+  }
+  .icon-bg.diamond {
+    border-radius: 8px;
+    transform: rotate(45deg);
+  }
+  .icon-bg.diamond .icon-inner {
+    transform: rotate(-45deg);
+    font-size: 22px;
+  }
+  .icon-pip {
+    position: absolute;
+    top: 3px; right: 3px;
+    width: 6px; height: 6px;
+    background: var(--magenta);
+    border-radius: 50%;
+    box-shadow: 0 0 4px var(--magenta);
+    z-index: 2;
+  }
+  .icon-bg.diamond .icon-pip {
+    transform: rotate(-45deg);
+  }
+  .app-label {
+    color: var(--white);
+    font-size: 7px;
+    text-align: center;
+    max-width: 58px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.3px;
+  }
+
+  /* ════════════════════════════════════════════════════════
+     SCREEN 3 — APP DRAWER
+  ═════════════════════════════════════════════════════════ */
+  .drawer-screen {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.95);
+    display: flex;
+    flex-direction: column;
+    padding-top: 20px;
+  }
+
+  .drag-handle {
+    width: 36px; height: 3px;
+    background: var(--magenta50);
+    border-radius: 2px;
+    align-self: center;
+    margin-bottom: 8px;
+  }
+  .drawer-title {
+    color: var(--magenta);
+    font-size: 9px;
+    letter-spacing: 3px;
+    padding: 0 14px 6px;
+  }
+  .search-bar {
+    margin: 0 10px 8px;
+    background: #0A0A0A;
+    border: 1px solid var(--magenta50);
+    border-radius: 2px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+  .search-prompt { color: var(--magenta); font-size: 10px; white-space: nowrap; }
+  .search-cursor {
+    display: inline-block;
+    width: 7px; height: 11px;
+    background: var(--magenta);
+    animation: blink 0.9s step-end infinite;
+    vertical-align: text-bottom;
+    margin-left: 1px;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .drawer-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px 4px;
+    padding: 4px 8px 16px;
+    overflow-y: auto;
+    flex: 1;
+  }
+  .drawer-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+  .drawer-icon {
+    width: 50px; height: 50px;
+    background: #101010;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    filter: grayscale(0.6) brightness(1.1);
+    position: relative;
+  }
+  .drawer-icon .pinned-pip {
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 8px; height: 8px;
+    background: var(--magenta);
+    border-radius: 2px;
+  }
+  .drawer-label {
+    color: var(--dimwhite);
+    font-size: 7px;
+    text-align: center;
+    max-width: 54px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ─── Animation helpers ──────────────────────────────── */
+  @keyframes pulse-dot {
+    0%,100% { opacity: 0.2; }
+    50%      { opacity: 1; box-shadow: 0 0 3px var(--white); }
+  }
+  @keyframes scan-line {
+    0%   { left: -100%; }
+    100% { left: 100%; }
+  }
+  .scan-overlay {
+    position: absolute; top:0; bottom:0; left:-100%;
+    width: 30%;
+    background: linear-gradient(90deg, transparent, rgba(230,0,126,0.06), transparent);
+    animation: scan-line 3s linear infinite;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<h1>ctOS 2.0 // DEDSEC LAUNCHER PREVIEW</h1>
+<p class="subtitle">REALME 8 PRO · 1080×2400 · AMOLED · ANDROID 13</p>
+
+<div class="screens-row">
+
+  <!-- ══ SCREEN 1: BOOT SEQUENCE ══════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="screen-label">[ 01 ] BOOT SEQUENCE</div>
+    <div class="phone">
+      <div class="boot-screen">
+        <!-- corner brackets -->
+        <div class="boot-corners">
+          <div class="boot-corner tl"></div>
+          <div class="boot-corner tr"></div>
+          <div class="boot-corner bl"></div>
+          <div class="boot-corner br"></div>
+        </div>
+
+        <!-- 8×8 dot matrix -->
+        <div class="dot-matrix" id="dotMatrix"></div>
+
+        <!-- terminal log -->
+        <div class="terminal">
+          <div class="log-line hdr">&gt; ctOS 2.0 // KERNEL_INIT...</div>
+          <div class="log-line">&gt; LOADING SYSTEM MODULES............OK</div>
+          <div class="log-line">&gt; MOUNTING ENCRYPTED VOLUMES.......OK</div>
+          <div class="log-line">&gt; CONNECTING TO DEDSEC NODE [TOR]...</div>
+          <div class="log-line ok">&gt; NODE HANDSHAKE: 192.168.0.∅......OK</div>
+          <div class="log-line">&gt; AUTHENTICATING CREDENTIALS........</div>
+          <div class="log-line ok">&gt; IDENTITY MASKED // TOR ACTIVE....OK</div>
+          <div class="log-line">&gt; BYPASSING CTOS SECURITY LAYER....</div>
+          <div class="log-line ok">&gt; FIREWALL BYPASSED.................OK</div>
+          <div class="log-line ok">&gt; BOTNET FRAMEWORK LOADED..........OK</div>
+          <div class="log-line ok">&gt; DEDSEC NETWORK ACTIVE [8 NODES].OK</div>
+          <div class="log-line hdr">&gt; ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ 100%</div>
+          <div class="log-line hdr">&gt; SYSTEM READY // WELCOME, DEDSEC</div>
+        </div>
+
+        <div class="skip-hint">[ TAP TO SKIP ]</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN 2: HOME SCREEN ════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="screen-label">[ 02 ] HOME SCREEN</div>
+    <div class="phone">
+      <div class="wallpaper-bg" style="background-image:url('wallpaper_dedsec_01.jpg')"></div>
+      <div class="wallpaper-overlay"></div>
+      <div class="halftone"></div>
+      <div class="scan-overlay"></div>
+      <div class="home-screen">
+
+        <!-- Telemetry Header -->
+        <div class="telemetry">
+          <div class="brackets"></div><div class="brackets-b"></div>
+          <div class="tel-skull-row">
+            <span class="skull">☠</span>
+            <div class="botnet-col">
+              <div style="display:flex;justify-content:space-between;width:100%">
+                <span class="botnet-label">BOTNET/XP</span>
+                <span style="color:var(--magenta50);font-size:7px;letter-spacing:1px" id="segLabel">AFTERNOON</span>
+              </div>
+              <div class="xp-bar-wrap" id="xpBarWrap">
+                <div class="xp-bar-fill" id="xpFill"></div>
+                <div class="xp-tick" style="left:25%"></div>
+                <div class="xp-tick" style="left:50%"></div>
+                <div class="xp-tick" style="left:75%"></div>
+                <div class="xp-dot" id="xpDot"></div>
+              </div>
+              <div class="xp-labels-row">
+                <span class="xp-pct" id="xpPct">--%  DAY DONE</span>
+                <span class="xp-bat" id="batLabel">BAT 83% ⚡</span>
+              </div>
+            </div>
+            <span class="skull">☠</span>
+          </div>
+          <div class="tel-info-row">
+            <span class="tel-ip">192.168.1.147</span>
+            <span class="tel-status">📶 ONLINE</span>
+            <span class="tel-time">09:06:42</span>
+          </div>
+        </div>
+
+        <!-- Media Widget -->
+        <div class="media-widget">
+          <div class="skull-art">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="50" cy="40" r="30" fill="#2A2A2A"/>
+              <circle cx="38" cy="38" r="9" fill="#0A0A0A"/>
+              <circle cx="62" cy="38" r="9" fill="#0A0A0A"/>
+              <path d="M32 60 L35 78 L65 78 L68 60Z" fill="#2A2A2A"/>
+              <line x1="43" y1="62" x2="43" y2="76" stroke="#0A0A0A" stroke-width="2.5"/>
+              <line x1="50" y1="62" x2="50" y2="76" stroke="#0A0A0A" stroke-width="2.5"/>
+              <line x1="57" y1="62" x2="57" y2="76" stroke="#0A0A0A" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <div class="media-info">
+            <div class="radio-label">DEDSEC PIRATE RADIO</div>
+            <div class="track-title">Digital Dreamz</div>
+            <div class="track-artist">Blocboy JB</div>
+            <div class="playback-row">
+              <button class="pb-btn shuffle">⇄</button>
+              <button class="pb-btn">⏮</button>
+              <button class="pb-btn play">▶</button>
+              <button class="pb-btn">⏭</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- App Grid (pinned) -->
+        <div class="swipe-hint">↑ SWIPE UP &nbsp;·&nbsp; HOLD: WALLPAPER</div>
+        <div class="app-grid">
+          <div class="app-tile">
+            <div class="icon-bg">🗺️<div class="icon-pip"></div></div>
+            <div class="app-label">Maps</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg">💀<div class="icon-pip"></div></div>
+            <div class="app-label">DedSec</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg diamond">
+              <span class="icon-inner">📸</span>
+              <div class="icon-pip"></div>
+            </div>
+            <div class="app-label">Camera</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg">🚗<div class="icon-pip"></div></div>
+            <div class="app-label">Car</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg">🛒<div class="icon-pip"></div></div>
+            <div class="app-label">App Store</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg">🎵<div class="icon-pip"></div></div>
+            <div class="app-label">Music</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg diamond">
+              <span class="icon-inner">🌐</span>
+              <div class="icon-pip"></div>
+            </div>
+            <div class="app-label">Browser</div>
+          </div>
+          <div class="app-tile">
+            <div class="icon-bg">❌<div class="icon-pip"></div></div>
+            <div class="app-label">ScoutX</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN 3: APP DRAWER ═════════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="screen-label">[ 03 ] APP DRAWER</div>
+    <div class="phone">
+      <div class="halftone"></div>
+      <div class="drawer-screen">
+        <div class="drag-handle"></div>
+        <div class="drawer-title">// APP REGISTRY</div>
+
+        <div class="search-bar">
+          <span class="search-prompt">root@ctOS:~# grep </span>
+          <span class="search-cursor"></span>
+        </div>
+
+        <div class="drawer-grid">
+          <div class="drawer-tile">
+            <div class="drawer-icon">📱<div class="pinned-pip"></div></div>
+            <div class="drawer-label">Settings</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">💬</div>
+            <div class="drawer-label">Messages</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">📷<div class="pinned-pip"></div></div>
+            <div class="drawer-label">Camera</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">📞</div>
+            <div class="drawer-label">Phone</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">🎵<div class="pinned-pip"></div></div>
+            <div class="drawer-label">Music</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">🌐</div>
+            <div class="drawer-label">Chrome</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">📧</div>
+            <div class="drawer-label">Gmail</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">🗺️<div class="pinned-pip"></div></div>
+            <div class="drawer-label">Maps</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">📸</div>
+            <div class="drawer-label">Gallery</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">🎮</div>
+            <div class="drawer-label">Games</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">⚙️</div>
+            <div class="drawer-label">Dev Tools</div>
+          </div>
+          <div class="drawer-tile">
+            <div class="drawer-icon">🔒</div>
+            <div class="drawer-label">Security</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN 4: WALLPAPER PICKER ══════════════════════════════ -->
+  <div class="phone-wrap">
+    <div class="screen-label">[ 04 ] WALLPAPER PICKER</div>
+    <div class="phone">
+      <!-- wallpaper visible in background -->
+      <div class="wallpaper-bg" style="background-image:url('wallpaper_dedsec_01.jpg')"></div>
+      <div class="wallpaper-overlay"></div>
+      <div class="halftone"></div>
+
+      <!-- picker sheet slides up from bottom -->
+      <div style="position:absolute;bottom:0;left:0;right:0;background:#050505;border-top:1px solid #222;padding-bottom:28px;">
+        <!-- handle -->
+        <div style="display:flex;justify-content:center;padding:10px 0 6px;">
+          <div style="width:38px;height:3px;background:rgba(230,0,126,0.4);border-radius:2px;"></div>
+        </div>
+        <!-- title -->
+        <div style="display:flex;align-items:center;padding:4px 16px 10px;gap:8px;">
+          <div style="width:12px;height:1px;background:var(--magenta);"></div>
+          <span style="color:var(--magenta);font-size:10px;letter-spacing:2px;font-weight:bold;">WALLPAPER SELECT</span>
+          <div style="flex:1;height:1px;background:rgba(230,0,126,0.3);"></div>
+        </div>
+        <!-- thumbnails -->
+        <div style="display:flex;gap:12px;padding:0 16px 14px;overflow:hidden;">
+          <!-- selected: dedsec 01 -->
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="position:relative;">
+              <img src="wallpaper_dedsec_01.jpg" style="width:80px;height:142px;object-fit:cover;border-radius:5px;border:2px solid var(--magenta);">
+              <div style="position:absolute;top:4px;right:4px;width:16px;height:16px;background:var(--magenta);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;color:#000;">✓</div>
+            </div>
+            <span style="color:var(--magenta);font-size:7px;font-family:var(--mono);">DEDSEC 1</span>
+          </div>
+          <!-- locked 1 -->
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="width:80px;height:142px;background:#0D0D0D;border-radius:5px;border:1px solid #222;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+              <span style="font-size:20px;">🔒</span>
+              <span style="color:#333;font-size:6px;font-family:var(--mono);">LOCKED</span>
+            </div>
+            <span style="color:#333;font-size:7px;font-family:var(--mono);">COMING SOON</span>
+          </div>
+          <!-- locked 2 -->
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="width:80px;height:142px;background:#0D0D0D;border-radius:5px;border:1px solid #222;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+              <span style="font-size:20px;">🔒</span>
+              <span style="color:#333;font-size:6px;font-family:var(--mono);">LOCKED</span>
+            </div>
+            <span style="color:#333;font-size:7px;font-family:var(--mono);">COMING SOON</span>
+          </div>
+        </div>
+        <!-- gallery button -->
+        <div style="margin:0 14px;border:1px solid rgba(230,0,126,0.4);border-radius:3px;padding:11px 14px;display:flex;align-items:center;gap:12px;">
+          <span style="font-size:18px;">🖼️</span>
+          <div>
+            <div style="color:var(--white);font-size:10px;font-family:var(--mono);font-weight:bold;">IMPORT FROM GALLERY</div>
+            <div style="color:var(--dimwhite);font-size:7.5px;font-family:var(--mono);">choose any image from your device</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /screens-row -->
+
+<!-- Legend -->
+<div style="max-width:960px;text-align:center;margin-top:12px;">
+  <p style="color:var(--magenta);font-size:9px;letter-spacing:3px;margin-bottom:8px;">FEATURE INDEX</p>
+  <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:12px;">
+    <span style="color:var(--dimwhite);font-size:8px;">▸ Boot grid = 8×8 animated dot matrix</span>
+    <span style="color:var(--dimwhite);font-size:8px;">▸ Magenta pips = status indicators</span>
+    <span style="color:var(--dimwhite);font-size:8px;">▸ Diamond tiles = every 3rd pinned app</span>
+    <span style="color:var(--dimwhite);font-size:8px;">▸ Pink dot = app is pinned to home</span>
+    <span style="color:var(--dimwhite);font-size:8px;">▸ grep _ = live search cursor</span>
+    <span style="color:var(--dimwhite);font-size:8px;">▸ All icons = grayscale + brightened</span>
+  </div>
+</div>
+
+<script>
+  // ── 8×8 dot matrix ──────────────────────────────────────────
+  const grid = document.getElementById('dotMatrix');
+  for (let i = 0; i < 64; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot';
+    grid.appendChild(d);
+  }
+  let scanPos = 0;
+  const dots = grid.querySelectorAll('.dot');
+  setInterval(() => {
+    dots.forEach((d, i) => {
+      d.className = 'dot' + (i <= scanPos ? ' lit' : (i <= scanPos + 8 ? ' dim' : ''));
+    });
+    scanPos = (scanPos + 1) % 64;
+  }, 35);
+
+  // ── Live day-progress XP bar ─────────────────────────────────
+  const SEGMENTS = ['NIGHT','MORNING','AFTERNOON','EVENING','NIGHT'];
+  const SEG_COLORS = {
+    NIGHT:     '#4466AA',
+    MORNING:   '#FFAA00',
+    AFTERNOON: '#E6007E',
+    EVENING:   '#884499'
+  };
+
+  function updateDayXP() {
+    const now    = new Date();
+    const mins   = now.getHours() * 60 + now.getMinutes();
+    const pct    = mins / 1440;           // 0..1
+    const pctInt = Math.round(pct * 100);
+    const hour   = now.getHours();
+
+    const seg = hour < 6 ? 'NIGHT' : hour < 12 ? 'MORNING' :
+                hour < 18 ? 'AFTERNOON' : hour < 21 ? 'EVENING' : 'NIGHT';
+    const color = SEG_COLORS[seg];
+
+    // Fill bar
+    const fill = document.getElementById('xpFill');
+    fill.style.width      = (pct * 100) + '%';
+    fill.style.background = color;
+    fill.style.boxShadow  = `0 0 6px ${color}88`;
+
+    // Dot at leading edge
+    const dot = document.getElementById('xpDot');
+    dot.style.left = (pct * 100) + '%';
+
+    // Labels
+    document.getElementById('segLabel').textContent = seg;
+    document.getElementById('xpPct').textContent    = pctInt + '% DAY DONE';
+    document.getElementById('batLabel').textContent  = 'BAT 83% ⚡';
+  }
+
+  updateDayXP();
+  setInterval(updateDayXP, 10000); // refresh every 10 s in browser
+</script>
+</body>
+</html>

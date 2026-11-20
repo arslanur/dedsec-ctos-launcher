@@ -6,8 +6,10 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -34,35 +36,49 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dedsec.launcher.data.LauncherViewModel
 import com.dedsec.launcher.ui.components.DedSecMediaWidget
-import com.dedsec.launcher.ui.components.HalftoneBackground
 import com.dedsec.launcher.ui.components.HomeGrid
 import com.dedsec.launcher.ui.components.TelemetryHeader
+import com.dedsec.launcher.ui.components.WallpaperBackground
+import com.dedsec.launcher.ui.components.WallpaperPickerSheet
 import com.dedsec.launcher.ui.theme.NeonMagentaDim
-import com.dedsec.launcher.ui.theme.PureBlack
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreen(viewModel: LauncherViewModel) {
-    val battery    by viewModel.battery.collectAsStateWithLifecycle()
-    val media      by viewModel.media.collectAsStateWithLifecycle()
-    val network    by viewModel.network.collectAsStateWithLifecycle()
-    val time       by viewModel.time.collectAsStateWithLifecycle()
-    val pinnedApps by viewModel.pinnedApps.collectAsStateWithLifecycle()
-    val allApps    by viewModel.apps.collectAsStateWithLifecycle()
+fun HomeScreen(
+    viewModel:    LauncherViewModel,
+    onPickGallery: () -> Unit           // hoisted to MainActivity for ActivityResult
+) {
+    val battery     by viewModel.battery.collectAsStateWithLifecycle()
+    val media       by viewModel.media.collectAsStateWithLifecycle()
+    val network     by viewModel.network.collectAsStateWithLifecycle()
+    val time        by viewModel.time.collectAsStateWithLifecycle()
+    val dayProgress by viewModel.dayProgress.collectAsStateWithLifecycle()
+    val pinnedApps  by viewModel.pinnedApps.collectAsStateWithLifecycle()
+    val allApps     by viewModel.apps.collectAsStateWithLifecycle()
+    val wallpaper   by viewModel.wallpaper.collectAsStateWithLifecycle()
 
-    var showDrawer by remember { mutableStateOf(false) }
+    var showDrawer  by remember { mutableStateOf(false) }
+    var showWpPicker by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(PureBlack)
             .pointerInput(Unit) {
                 detectVerticalDragGestures { _, dragAmount ->
                     if (dragAmount < -40f) showDrawer = true
                 }
             }
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication        = null,
+                onClick           = {},
+                onLongClick       = { showWpPicker = true }
+            )
     ) {
-        HalftoneBackground()
+        // ── Wallpaper + halftone overlay ──────────────────────────────────
+        WallpaperBackground(state = wallpaper)
 
+        // ── Main content ──────────────────────────────────────────────────
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -71,10 +87,11 @@ fun HomeScreen(viewModel: LauncherViewModel) {
             Spacer(Modifier.height(8.dp))
 
             TelemetryHeader(
-                battery  = battery,
-                network  = network,
-                time     = time,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                battery     = battery,
+                network     = network,
+                time        = time,
+                dayProgress = dayProgress,
+                modifier    = Modifier.padding(horizontal = 12.dp)
             )
 
             Spacer(Modifier.height(10.dp))
@@ -91,9 +108,9 @@ fun HomeScreen(viewModel: LauncherViewModel) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text       = "↑ SWIPE UP",
+                    text       = "↑ SWIPE UP  ·  HOLD TO CHANGE WALLPAPER",
                     color      = NeonMagentaDim,
-                    fontSize   = 9.sp,
+                    fontSize   = 8.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }
@@ -108,6 +125,7 @@ fun HomeScreen(viewModel: LauncherViewModel) {
             Spacer(Modifier.height(8.dp))
         }
 
+        // ── App Drawer ────────────────────────────────────────────────────
         AnimatedVisibility(
             visible = showDrawer,
             enter   = slideInVertically(initialOffsetY = { it }, animationSpec = tween(300)) +
@@ -121,6 +139,28 @@ fun HomeScreen(viewModel: LauncherViewModel) {
                 onAppClick    = { app -> showDrawer = false; viewModel.launchApp(app.packageName) },
                 onTogglePin   = { viewModel.togglePin(it) },
                 onOpenAppInfo = { viewModel.openAppInfo(it) }
+            )
+        }
+
+        // ── Wallpaper Picker ──────────────────────────────────────────────
+        AnimatedVisibility(
+            visible = showWpPicker,
+            enter   = slideInVertically(initialOffsetY = { it }, animationSpec = tween(280)) +
+                      fadeIn(tween(180)),
+            exit    = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(240)) +
+                      fadeOut(tween(180))
+        ) {
+            WallpaperPickerSheet(
+                current         = wallpaper,
+                onSelectBundled = { resId ->
+                    viewModel.selectBundledWallpaper(resId)
+                    showWpPicker = false
+                },
+                onPickGallery   = {
+                    showWpPicker = false
+                    onPickGallery()
+                },
+                onDismiss       = { showWpPicker = false }
             )
         }
     }

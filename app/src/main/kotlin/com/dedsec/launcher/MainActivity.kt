@@ -4,8 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -41,7 +43,13 @@ class MainActivity : ComponentActivity() {
             DedSecTheme {
                 val showBoot by viewModel.showBoot.collectAsStateWithLifecycle()
 
-                // Suppress system back — launchers don't exit on back
+                // Gallery image picker — registered here so it has an Activity context
+                val galleryLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.GetContent()
+                ) { uri ->
+                    if (uri != null) viewModel.setCustomWallpaper(uri)
+                }
+
                 BackHandler(enabled = true) {}
 
                 Box(
@@ -59,7 +67,10 @@ class MainActivity : ComponentActivity() {
                         if (booting) {
                             BootSequenceScreen(onComplete = { viewModel.dismissBoot() })
                         } else {
-                            HomeScreen(viewModel = viewModel)
+                            HomeScreen(
+                                viewModel     = viewModel,
+                                onPickGallery = { galleryLauncher.launch("image/*") }
+                            )
                         }
                     }
                 }
