@@ -31,30 +31,17 @@ jobs:
             "build-tools;34.0.0" \
             "platform-tools" || true
 
-      - name: Extract Gradle wrapper JAR from distribution
+      - name: Download Gradle 8.9
         run: |
-          mkdir -p gradle/wrapper
-          # Download Gradle 8.9 binary distribution — only to extract the
-          # bootstrap wrapper JAR. This avoids running "gradle wrapper" which
-          # would trigger project evaluation (and Maven Central downloads) just
-          # to produce the JAR.
           wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip \
                -O /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp/gradle-dist/
-          # Locate the wrapper bootstrap JAR inside the distribution
-          WRAPPER_JAR=$(find /tmp/gradle-dist/gradle-8.9/lib \
-                             -name "gradle-wrapper*.jar" 2>/dev/null | head -1)
-          if [ -z "$WRAPPER_JAR" ]; then
-            echo "ERROR: gradle-wrapper JAR not found; listing lib/:"
-            ls -1 /tmp/gradle-dist/gradle-8.9/lib/
-            exit 1
-          fi
-          echo "Wrapper JAR: $WRAPPER_JAR"
-          cp "$WRAPPER_JAR" gradle/wrapper/gradle-wrapper.jar
-          chmod +x gradlew
+          chmod +x /tmp/gradle-dist/gradle-8.9/bin/gradle
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: |
+          /tmp/gradle-dist/gradle-8.9/bin/gradle assembleDebug \
+            --stacktrace --no-daemon
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
