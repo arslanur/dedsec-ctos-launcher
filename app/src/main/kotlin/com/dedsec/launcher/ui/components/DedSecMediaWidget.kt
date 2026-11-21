@@ -206,7 +206,7 @@ private fun SkullArtwork(modifier: Modifier = Modifier) {
             color       = NeonMagenta,
             topLeft     = Offset(0f, 0f),
             size        = size,
-            style       = androidx.compose.ui.graphics.drawscope.Stroke(strokeWidth = 1.5f)
+            style       = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.5f)
         )
     }
 }

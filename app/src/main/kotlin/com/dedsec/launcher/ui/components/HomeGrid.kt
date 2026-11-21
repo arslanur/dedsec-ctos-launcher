@@ -136,16 +136,18 @@ private fun IconImage(drawable: Drawable, modifier: Modifier = Modifier) {
         drawable.toBitmap(96, 96).asImageBitmap()
     }
     val filter = remember {
-        val base = ColorMatrix()
-        base.setSaturation(0f)
-        val bright = ColorMatrix(floatArrayOf(
+        // Use android.graphics.ColorMatrix for setSaturation/postConcat, then
+        // convert the resulting float array to Compose's ColorMatrix.
+        val am = android.graphics.ColorMatrix()
+        am.setSaturation(0f)
+        val bright = android.graphics.ColorMatrix(floatArrayOf(
             1.4f, 0f,   0f,   0f, 20f,
             0f,   1.4f, 0f,   0f, 20f,
             0f,   0f,   1.4f, 0f, 20f,
             0f,   0f,   0f,   1f,  0f
         ))
-        base.postConcat(bright)
-        ColorFilter.colorMatrix(base)
+        am.postConcat(bright)
+        ColorFilter.colorMatrix(ColorMatrix(am.array))
     }
     Image(
         bitmap             = bitmap,

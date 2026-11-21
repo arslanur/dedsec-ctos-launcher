@@ -170,7 +170,9 @@ private fun DrawerAppTile(
         Box(contentAlignment = Alignment.TopEnd) {
             val bitmap = remember(app.icon) { app.icon.toBitmap(96, 96).asImageBitmap() }
             val filter = remember {
-                val m = ColorMatrix(); m.setSaturation(0f); ColorFilter.colorMatrix(m)
+                val am = android.graphics.ColorMatrix()
+                am.setSaturation(0f)
+                ColorFilter.colorMatrix(ColorMatrix(am.array))
             }
 
             Image(
