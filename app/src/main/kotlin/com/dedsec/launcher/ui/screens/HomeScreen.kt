@@ -1,5 +1,6 @@
 package com.dedsec.launcher.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -57,8 +58,12 @@ fun HomeScreen(
     val allApps     by viewModel.apps.collectAsStateWithLifecycle()
     val wallpaper   by viewModel.wallpaper.collectAsStateWithLifecycle()
 
-    var showDrawer  by remember { mutableStateOf(false) }
+    var showDrawer   by remember { mutableStateOf(false) }
     var showWpPicker by remember { mutableStateOf(false) }
+
+    // Back gesture closes whichever overlay is open; outermost launcher ignores back
+    BackHandler(enabled = showWpPicker) { showWpPicker = false }
+    // Drawer BackHandler lives inside AppDrawerSheet itself so it fires when drawer is shown
 
     Box(
         modifier = Modifier

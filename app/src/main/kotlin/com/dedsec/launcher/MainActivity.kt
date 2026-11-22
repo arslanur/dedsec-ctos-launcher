@@ -3,7 +3,6 @@ package com.dedsec.launcher
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -49,8 +48,6 @@ class MainActivity : ComponentActivity() {
                 ) { uri ->
                     if (uri != null) viewModel.setCustomWallpaper(uri)
                 }
-
-                BackHandler(enabled = true) {}
 
                 Box(
                     modifier = Modifier

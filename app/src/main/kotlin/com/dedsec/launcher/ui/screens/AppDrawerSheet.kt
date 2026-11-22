@@ -1,15 +1,18 @@
 package com.dedsec.launcher.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -20,14 +23,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,28 +52,47 @@ fun AppDrawerSheet(
     onTogglePin: (String) -> Unit,
     onOpenAppInfo: (String) -> Unit
 ) {
+    // Back gesture (Realme gesture nav) closes the drawer
+    BackHandler { onDismiss() }
+
     var query by remember { mutableStateOf("") }
     val filtered = remember(query, apps) {
         if (query.isBlank()) apps
         else apps.filter { it.appName.contains(query, ignoreCase = true) }
     }
 
+    val focusRequester = remember { FocusRequester() }
+    // Auto-focus the search field when the drawer opens so the keyboard appears
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    val gridState = rememberLazyGridState()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color(0xF0000000))
+            // Tap the dark backdrop to dismiss
             .clickable(onClick = onDismiss)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = 48.dp)
-                .clickable(enabled = false) {}  // consume clicks to prevent dismiss
+                .clickable(enabled = false) {}  // block backdrop clicks inside the sheet
         ) {
-            // ── DRAG HANDLE ───────────────────────────────────────────────
+            // ── DRAG HANDLE — swipe down here to dismiss ───────────────────
             Box(
-                modifier          = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                contentAlignment  = Alignment.Center
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+                    .pointerInput(Unit) {
+                        detectVerticalDragGestures { _, dragAmount ->
+                            if (dragAmount > 30f) onDismiss()
+                        }
+                    },
+                contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
@@ -76,11 +102,11 @@ fun AppDrawerSheet(
             }
 
             Text(
-                text          = "// APP REGISTRY",
-                color         = NeonMagenta,
-                fontSize      = 11.sp,
-                fontFamily    = FontFamily.Monospace,
-                modifier      = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                text       = "// APP REGISTRY",
+                color      = NeonMagenta,
+                fontSize   = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier   = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
             // ── SEARCH BAR ────────────────────────────────────────────────
@@ -109,14 +135,19 @@ fun AppDrawerSheet(
                             fontSize   = 12.sp,
                             fontFamily = FontFamily.Monospace
                         ),
-                        cursorBrush   = SolidColor(NeonMagenta),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        modifier      = Modifier.weight(1f),
+                        cursorBrush     = SolidColor(NeonMagenta),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Text,
+                            imeAction    = ImeAction.Search
+                        ),
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
                         decorationBox = { inner ->
                             if (query.isEmpty()) {
                                 Text(
                                     text       = "_",
-                                    color      = NeonMagenta,
+                                    color      = NeonMagentaDim,
                                     fontSize   = 12.sp,
                                     fontFamily = FontFamily.Monospace
                                 )
@@ -129,8 +160,13 @@ fun AppDrawerSheet(
 
             // ── APP GRID ──────────────────────────────────────────────────
             LazyVerticalGrid(
+                state                 = gridState,
                 columns               = GridCells.Fixed(4),
-                contentPadding        = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+                contentPadding        = PaddingValues(
+                    horizontal = 8.dp,
+                    vertical   = 4.dp,
+                    bottom     = 32.dp          // space for gesture nav bar
+                ),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement   = Arrangement.spacedBy(12.dp),
                 modifier              = Modifier.fillMaxSize()
@@ -209,9 +245,9 @@ private fun DrawerAppTile(
         )
 
         DropdownMenu(
-            expanded        = showMenu,
+            expanded         = showMenu,
             onDismissRequest = { showMenu = false },
-            modifier        = Modifier.background(Color(0xFF0A0A0A))
+            modifier         = Modifier.background(Color(0xFF0A0A0A))
         ) {
             DropdownMenuItem(
                 text    = { Text(if (app.isPinned) "UNPIN" else "PIN TO HOME", fontFamily = FontFamily.Monospace, color = NeonMagenta, fontSize = 11.sp) },
