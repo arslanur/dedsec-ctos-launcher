@@ -163,9 +163,10 @@ fun AppDrawerSheet(
                 state                 = gridState,
                 columns               = GridCells.Fixed(4),
                 contentPadding        = PaddingValues(
-                    horizontal = 8.dp,
-                    vertical   = 4.dp,
-                    bottom     = 32.dp          // space for gesture nav bar
+                    start  = 8.dp,
+                    end    = 8.dp,
+                    top    = 4.dp,
+                    bottom = 32.dp   // space for gesture nav bar
                 ),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement   = Arrangement.spacedBy(12.dp),
