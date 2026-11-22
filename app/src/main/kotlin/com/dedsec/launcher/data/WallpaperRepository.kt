@@ -6,7 +6,12 @@ import com.dedsec.launcher.R
 
 /** All bundled wallpapers in order. Index 0 is the default. */
 val BUNDLED_WALLPAPERS: List<Int> = listOf(
-    R.drawable.wallpaper_dedsec_01
+    R.drawable.wallpaper_dedsec_01,
+    R.drawable.wallpaper_dedsec_02,
+    R.drawable.wallpaper_dedsec_03,
+    R.drawable.wallpaper_dedsec_04,
+    R.drawable.wallpaper_dedsec_05,
+    R.drawable.wallpaper_dedsec_06
 )
 
 sealed class WallpaperState {

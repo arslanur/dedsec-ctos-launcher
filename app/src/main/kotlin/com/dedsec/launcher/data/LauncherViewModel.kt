@@ -1,12 +1,17 @@
 package com.dedsec.launcher.data
 
 import android.app.Application
+import android.app.NotificationManager
+import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
+import android.media.AudioManager
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.net.ConnectivityManager
@@ -14,6 +19,7 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
+import android.provider.Settings
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dedsec.launcher.service.MediaNotificationService
@@ -25,7 +31,6 @@ import kotlinx.coroutines.launch
 import java.net.Inet4Address
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
@@ -60,6 +65,25 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val _wallpaper    = MutableStateFlow<WallpaperState>(loadWallpaper(ctx))
     val wallpaper: StateFlow<WallpaperState> = _wallpaper.asStateFlow()
 
+    // --- Control Centre ---
+    private val _torch       = MutableStateFlow(false)
+    val torch: StateFlow<Boolean> = _torch.asStateFlow()
+
+    private val _bluetooth   = MutableStateFlow(false)
+    val bluetooth: StateFlow<Boolean> = _bluetooth.asStateFlow()
+
+    private val _dnd         = MutableStateFlow(false)
+    val dnd: StateFlow<Boolean> = _dnd.asStateFlow()
+
+    private val _autoRotate  = MutableStateFlow(true)
+    val autoRotate: StateFlow<Boolean> = _autoRotate.asStateFlow()
+
+    private val _brightness  = MutableStateFlow(0.5f)
+    val brightness: StateFlow<Float> = _brightness.asStateFlow()
+
+    private val _volume      = MutableStateFlow(0.5f)
+    val volume: StateFlow<Float> = _volume.asStateFlow()
+
     private val batteryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             intent ?: return
@@ -79,6 +103,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         registerBattery()
         pollNetwork()
         collectMedia()
+        readControlState()
     }
 
     private fun loadApps() {
@@ -198,6 +223,119 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         ctx.startActivity(intent)
+    }
+
+    // ── Control Centre ────────────────────────────────────────────────────────
+
+    private fun readControlState() {
+        val btAdapter = (ctx.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+        _bluetooth.value = btAdapter?.isEnabled == true
+
+        _autoRotate.value = Settings.System.getInt(
+            ctx.contentResolver, Settings.System.ACCELEROMETER_ROTATION, 1
+        ) == 1
+
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        _dnd.value = nm.currentInterruptionFilter != NotificationManager.INTERRUPTION_FILTER_ALL
+
+        if (Settings.System.canWrite(ctx)) {
+            val b = Settings.System.getInt(ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS, 128)
+            _brightness.value = b / 255f
+        }
+
+        val am  = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val cur = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        _volume.value = if (max > 0) cur.toFloat() / max else 0f
+    }
+
+    fun toggleTorch() {
+        val cm = ctx.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraId = cm.cameraIdList.firstOrNull {
+            cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+        } ?: return
+        val next = !_torch.value
+        try { cm.setTorchMode(cameraId, next); _torch.value = next } catch (_: Exception) {}
+    }
+
+    fun toggleBluetooth() {
+        ctx.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
+    fun toggleAutoRotate() {
+        if (!Settings.System.canWrite(ctx)) { openWriteSettingsPermission(); return }
+        val next = if (_autoRotate.value) 0 else 1
+        Settings.System.putInt(ctx.contentResolver, Settings.System.ACCELEROMETER_ROTATION, next)
+        _autoRotate.value = next == 1
+    }
+
+    fun toggleDnd() {
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (!nm.isNotificationPolicyAccessGranted) {
+            ctx.startActivity(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+            return
+        }
+        val next = !_dnd.value
+        nm.setInterruptionFilter(
+            if (next) NotificationManager.INTERRUPTION_FILTER_PRIORITY
+            else      NotificationManager.INTERRUPTION_FILTER_ALL
+        )
+        _dnd.value = next
+    }
+
+    fun setBrightness(value: Float) {
+        if (!Settings.System.canWrite(ctx)) { openWriteSettingsPermission(); return }
+        Settings.System.putInt(
+            ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
+            Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
+        )
+        Settings.System.putInt(
+            ctx.contentResolver, Settings.System.SCREEN_BRIGHTNESS,
+            (value * 255).toInt().coerceIn(1, 255)
+        )
+        _brightness.value = value
+    }
+
+    fun setVolume(value: Float) {
+        val am  = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        am.setStreamVolume(AudioManager.STREAM_MUSIC, (value * max).toInt(), 0)
+        _volume.value = value
+    }
+
+    fun openWifiSettings() {
+        ctx.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+    }
+
+    fun openDataSettings() {
+        ctx.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+    }
+
+    fun openAirplaneSettings() {
+        ctx.startActivity(Intent(Settings.ACTION_AIRPLANE_MODE_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+    }
+
+    fun openPowerSaveSettings() {
+        ctx.startActivity(Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+    }
+
+    fun openWriteSettingsPermission() {
+        ctx.startActivity(Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
+            data = Uri.parse("package:${ctx.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        })
+    }
+
+    fun expandNotificationShade() {
+        try {
+            val sb  = ctx.getSystemService("statusbar")
+            val cls = Class.forName("android.app.StatusBarManager")
+            cls.getMethod("expandNotificationsPanel").invoke(sb)
+        } catch (_: Exception) {}
     }
 
     fun dismissBoot() { _showBoot.value = false }

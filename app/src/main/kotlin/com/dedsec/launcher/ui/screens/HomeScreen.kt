@@ -9,7 +9,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dedsec.launcher.data.LauncherViewModel
+import com.dedsec.launcher.ui.components.ControlCentrePanel
 import com.dedsec.launcher.ui.components.DedSecMediaWidget
 import com.dedsec.launcher.ui.components.HomeGrid
 import com.dedsec.launcher.ui.components.TelemetryHeader
@@ -58,20 +59,49 @@ fun HomeScreen(
     val allApps     by viewModel.apps.collectAsStateWithLifecycle()
     val wallpaper   by viewModel.wallpaper.collectAsStateWithLifecycle()
 
-    var showDrawer   by remember { mutableStateOf(false) }
-    var showWpPicker by remember { mutableStateOf(false) }
+    // Control Centre state
+    val torch       by viewModel.torch.collectAsStateWithLifecycle()
+    val bluetooth   by viewModel.bluetooth.collectAsStateWithLifecycle()
+    val dnd         by viewModel.dnd.collectAsStateWithLifecycle()
+    val autoRotate  by viewModel.autoRotate.collectAsStateWithLifecycle()
+    val brightness  by viewModel.brightness.collectAsStateWithLifecycle()
+    val volume      by viewModel.volume.collectAsStateWithLifecycle()
 
-    // Back gesture closes whichever overlay is open; outermost launcher ignores back
-    BackHandler(enabled = showWpPicker) { showWpPicker = false }
-    // Drawer BackHandler lives inside AppDrawerSheet itself so it fires when drawer is shown
+    var showDrawer        by remember { mutableStateOf(false) }
+    var showWpPicker      by remember { mutableStateOf(false) }
+    var showControlCentre by remember { mutableStateOf(false) }
+
+    // Back gestures
+    BackHandler(enabled = showWpPicker)      { showWpPicker = false }
+    BackHandler(enabled = showControlCentre) { showControlCentre = false }
+    // Drawer BackHandler lives inside AppDrawerSheet itself
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { _, dragAmount ->
-                    if (dragAmount < -40f) showDrawer = true
-                }
+            .pointerInput(showDrawer, showControlCentre) {
+                var startX = 0f
+                var startY = 0f
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        startX = offset.x
+                        startY = offset.y
+                    },
+                    onDrag = { _, dragAmount ->
+                        // Swipe up anywhere → drawer
+                        if (dragAmount.y < -40f && !showDrawer && !showControlCentre) {
+                            showDrawer = true
+                        }
+                        // Swipe down from top 120px zone
+                        if (startY < 120f && dragAmount.y > 40f && !showDrawer && !showControlCentre) {
+                            if (startX > size.width / 2f) {
+                                showControlCentre = true
+                            } else {
+                                viewModel.expandNotificationShade()
+                            }
+                        }
+                    }
+                )
             }
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -113,7 +143,7 @@ fun HomeScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text       = "↑ SWIPE UP  ·  HOLD TO CHANGE WALLPAPER",
+                    text       = "↑ SWIPE UP  ·  HOLD TO CHANGE WALLPAPER  ·  ↓ TOP-RIGHT = ctOS",
                     color      = NeonMagentaDim,
                     fontSize   = 8.sp,
                     fontFamily = FontFamily.Monospace
@@ -166,6 +196,35 @@ fun HomeScreen(
                     onPickGallery()
                 },
                 onDismiss       = { showWpPicker = false }
+            )
+        }
+
+        // ── ctOS Control Centre ───────────────────────────────────────────
+        AnimatedVisibility(
+            visible = showControlCentre,
+            enter   = slideInVertically(initialOffsetY = { -it }, animationSpec = tween(280)) +
+                      fadeIn(tween(180)),
+            exit    = slideOutVertically(targetOffsetY = { -it }, animationSpec = tween(240)) +
+                      fadeOut(tween(180))
+        ) {
+            ControlCentrePanel(
+                torchOn          = torch,
+                bluetoothOn      = bluetooth,
+                dndOn            = dnd,
+                autoRotateOn     = autoRotate,
+                brightness       = brightness,
+                volume           = volume,
+                onToggleTorch    = { viewModel.toggleTorch() },
+                onToggleBluetooth = { viewModel.toggleBluetooth() },
+                onToggleDnd      = { viewModel.toggleDnd() },
+                onToggleAutoRotate = { viewModel.toggleAutoRotate() },
+                onOpenWifi       = { viewModel.openWifiSettings() },
+                onOpenData       = { viewModel.openDataSettings() },
+                onOpenAirplane   = { viewModel.openAirplaneSettings() },
+                onOpenPowerSave  = { viewModel.openPowerSaveSettings() },
+                onBrightnessChange = { viewModel.setBrightness(it) },
+                onVolumeChange   = { viewModel.setVolume(it) },
+                onDismiss        = { showControlCentre = false }
             )
         }
     }
